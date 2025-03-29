@@ -1,0 +1,84 @@
+{
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "author": {
+    "name": "Sherif Fanous"
+  },
+  "categories": [
+    "Other",
+    "Themes"
+  ],
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "lumosync.actions": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "description": "Settings to apply when the theme kind is active",
+            "type": "object"
+          },
+          "default": {
+            "Dark": {},
+            "HighContrast": {},
+            "HighContrastLight": {},
+            "Light": {}
+          },
+          "description": "Define settings to be updated when theme kind changes",
+          "type": "object"
+        }
+      },
+      "title": "LumoSync"
+    }
+  },
+  "description": "LumoSync automatically adjusts your VS Code settings based on the active theme kind (Light, Dark, HighContrast, or HighContrastLight). It detects theme changes and applies your predefined settings to maintain a cohesive visual experience.",
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.98.0",
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.21.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.7.3",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1"
+  },
+  "displayName": "LumoSync",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "homepage": "https://github.com/sherif-fanous/lumosync/blob/main/README.md",
+  "icon": "images/icon.png",
+  "keywords": [
+    "theme",
+    "settings",
+    "sync",
+    "lumo",
+    "dark",
+    "light",
+    "highcontrast"
+  ],
+  "license": "MIT",
+  "main": "./dist/extension.js",
+  "name": "lumosync",
+  "publisher": "sherif-fanous",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sherif-fanous/lumosync.git"
+  },
+  "scripts": {
+    "compile": "webpack",
+    "compile-tests": "tsc -p . --outDir out",
+    "lint": "eslint src",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "test": "vscode-test",
+    "vscode:prepublish": "npm run package",
+    "watch": "webpack --watch",
+    "watch-tests": "tsc -p . -w --outDir out"
+  },
+  "version": "0.0.1"
+}
