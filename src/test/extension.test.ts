@@ -1,3 +1,7 @@
+/**
+ * Tests theme synchronization and the action schema with a mocked VS Code API.
+ * Settings writes stay in memory.
+ */
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

@@ -1,3 +1,6 @@
+/**
+ * Applies user settings for the active theme kind and reapplies them when actions change.
+ */
 import * as vscode from "vscode";
 
 let outputChannel: vscode.OutputChannel;
@@ -8,6 +11,9 @@ let lastAppliedThemeKind: string | undefined;
 
 let themeUpdateQueue = Promise.resolve();
 
+/**
+ * Registers theme and action listeners and queues the initial settings update.
+ */
 export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("LumoSync");
 
@@ -26,7 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * Handles theme changes by detecting the current theme kind and applying appropriate settings
+ * Applies actions for the current theme kind unless already applied successfully.
+ * Forced updates reapply actions even when the theme kind is unchanged.
  */
 async function handleThemeKindChange(force = false) {
   try {
