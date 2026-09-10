@@ -1,14 +1,50 @@
 {
-  "activationEvents": [
-    "onStartupFinished"
-  ],
-  "author": {
-    "name": "Sherif Fanous"
-  },
+  "name": "lumosync",
+  "displayName": "LumoSync",
+  "version": "0.0.1",
+  "description": "Apply your configured VS Code settings when the active theme kind changes. Supports Light, Dark, HighContrast, and HighContrastLight.",
   "categories": [
     "Other",
     "Themes"
   ],
+  "keywords": [
+    "theme",
+    "settings",
+    "sync",
+    "lumo",
+    "dark",
+    "light",
+    "highcontrast"
+  ],
+  "homepage": "https://github.com/sherif-fanous/lumosync/blob/main/README.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sherif-fanous/lumosync.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Sherif Fanous"
+  },
+  "publisher": "sherif-fanous",
+  "main": "./out/extension.js",
+  "scripts": {
+    "check": "pnpm run format-check && pnpm run type-check && pnpm run lint && pnpm test",
+    "compile": "tsc -p .",
+    "format": "prettier --write eslint.config.mjs package.json src tsconfig.json .vscode-test.mjs .vscode",
+    "format-check": "prettier --check eslint.config.mjs package.json src tsconfig.json .vscode-test.mjs .vscode",
+    "lint": "eslint .",
+    "lint-fix": "eslint . --fix",
+    "pack-check": "pnpm run check && vsce ls --no-dependencies",
+    "package": "pnpm run check && vsce package --no-dependencies",
+    "sort-package-json": "sort-package-json",
+    "test": "pnpm run compile && mocha --ui tdd \"out/test/**/*.test.js\"",
+    "test-vscode": "pnpm run compile && vscode-test",
+    "test-watch": "pnpm run compile && mocha --ui tdd --watch \"out/test/**/*.test.js\"",
+    "type-check": "tsc -p . --noEmit",
+    "update-deps": "pnpm update",
+    "vscode:prepublish": "pnpm run compile",
+    "watch": "tsc -p . --watch"
+  },
   "contributes": {
     "configuration": {
       "properties": {
@@ -46,58 +82,42 @@
       "title": "LumoSync"
     }
   },
-  "description": "Apply your configured VS Code settings when the active theme kind changes. Supports Light, Dark, HighContrast, and HighContrastLight.",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "prettier": {
+    "importOrder": [
+      "<BUILTIN_MODULES>",
+      "",
+      "<THIRD_PARTY_MODULES>"
+    ],
+    "importOrderTypeScriptVersion": "5.8.2",
+    "plugins": [
+      "@ianvs/prettier-plugin-sort-imports"
+    ]
+  },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@ianvs/prettier-plugin-sort-imports": "4.7.1",
+    "@stylistic/eslint-plugin": "5.10.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.75.0",
-    "@typescript-eslint/eslint-plugin": "^8.25.0",
-    "@typescript-eslint/parser": "^8.25.0",
     "@vscode/test-cli": "0.0.10",
     "@vscode/test-electron": "^2.4.1",
     "@vscode/vsce": "3.9.2",
-    "eslint": "^9.21.0",
+    "eslint": "^10.10.0",
+    "eslint-plugin-perfectionist": "5.11.0",
+    "eslint-plugin-unicorn": "74.0.0",
     "mocha": "10.8.2",
-    "typescript": "^5.7.3"
+    "prettier": "3.9.6",
+    "sort-package-json": "4.0.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "8.70.0"
   },
-  "displayName": "LumoSync",
+  "packageManager": "pnpm@12.3.4",
   "engines": {
     "vscode": "^1.75.0"
   },
-  "homepage": "https://github.com/sherif-fanous/lumosync/blob/main/README.md",
-  "icon": "images/icon.png",
-  "keywords": [
-    "theme",
-    "settings",
-    "sync",
-    "lumo",
-    "dark",
-    "light",
-    "highcontrast"
-  ],
-  "license": "MIT",
-  "main": "./out/extension.js",
-  "name": "lumosync",
-  "packageManager": "pnpm@12.3.4",
-  "publisher": "sherif-fanous",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/sherif-fanous/lumosync.git"
-  },
-  "scripts": {
-    "check": "pnpm run type-check && pnpm run lint && pnpm test",
-    "compile": "tsc -p .",
-    "lint": "eslint src",
-    "lint-fix": "eslint src --fix",
-    "pack-check": "pnpm run check && vsce ls --no-dependencies",
-    "package": "pnpm run check && vsce package --no-dependencies",
-    "test": "pnpm run compile && mocha --ui tdd \"out/test/**/*.test.js\"",
-    "test-vscode": "pnpm run compile && vscode-test",
-    "test-watch": "pnpm run compile && mocha --ui tdd --watch \"out/test/**/*.test.js\"",
-    "type-check": "tsc -p . --noEmit",
-    "update-deps": "pnpm update",
-    "vscode:prepublish": "pnpm run compile",
-    "watch": "tsc -p . --watch"
-  },
-  "version": "0.0.1"
+  "icon": "images/icon.png"
 }

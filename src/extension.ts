@@ -8,10 +8,6 @@ let lastAppliedThemeKind: string | undefined;
 
 let themeUpdateQueue = Promise.resolve();
 
-function requestThemeUpdate(force = false) {
-  themeUpdateQueue = themeUpdateQueue.then(() => handleThemeKindChange(force));
-}
-
 export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("LumoSync");
 
@@ -23,14 +19,10 @@ export function activate(context: vscode.ExtensionContext) {
       if (event.affectsConfiguration("lumosync.actions")) {
         requestThemeUpdate(true);
       }
-    })
+    }),
   );
 
   requestThemeUpdate();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -57,7 +49,7 @@ async function handleThemeKindChange(force = false) {
       outputChannel.appendLine(`Current theme kind: ${themeKind}`);
     } else if (lastThemeKind !== themeKind) {
       outputChannel.appendLine(
-        `Theme kind changed from ${lastThemeKind} to ${themeKind}`
+        `Theme kind changed from ${lastThemeKind} to ${themeKind}`,
       );
     } else {
       outputChannel.appendLine(`Reapplying settings for ${themeKind}`);
@@ -72,8 +64,9 @@ async function handleThemeKindChange(force = false) {
 
     if (lumosyncActions !== undefined && !isRecord(lumosyncActions)) {
       outputChannel.appendLine(
-        "lumosync.actions must be an object containing theme kinds and their settings."
+        "lumosync.actions must be an object containing theme kinds and their settings.",
       );
+
       return;
     }
 
@@ -81,64 +74,63 @@ async function handleThemeKindChange(force = false) {
 
     if (actions !== undefined && !isRecord(actions)) {
       outputChannel.appendLine(
-        `lumosync.actions.${themeKind} must be an object containing setting names and values.`
+        `lumosync.actions.${themeKind} must be an object containing setting names and values.`,
       );
+
       return;
     }
 
     if (actions !== undefined) {
       if (Object.keys(actions).length === 0) {
-        outputChannel.appendLine(
-          `No settings configured for ${themeKind}`
-        );
+        outputChannel.appendLine(`No settings configured for ${themeKind}`);
 
         lastAppliedThemeKind = themeKind;
+
         return;
       }
 
-      outputChannel.appendLine(
-        `Applying settings for ${themeKind}`
-      );
+      outputChannel.appendLine(`Applying settings for ${themeKind}`);
 
       let failedCount = 0;
+
       for (const [setting, value] of Object.entries(actions)) {
         try {
           await vscode.workspace
             .getConfiguration()
             .update(setting, value, vscode.ConfigurationTarget.Global);
 
-          outputChannel.appendLine(
-            `Updated setting "${setting}"`
-          );
+          outputChannel.appendLine(`Updated setting "${setting}"`);
         } catch (err) {
           failedCount++;
-          console.error(
-            `Could not update setting "${setting}": ${err}`
-          );
           outputChannel.appendLine(
-            `Could not update setting "${setting}": ${err}`
+            `Could not update setting "${setting}": ${String(err)}`,
           );
         }
       }
 
       if (failedCount === 0) {
         lastAppliedThemeKind = themeKind;
-        outputChannel.appendLine(
-          `Applied settings for ${themeKind}`
-        );
+        outputChannel.appendLine(`Applied settings for ${themeKind}`);
       } else {
         outputChannel.appendLine(
-          `Could not apply all settings for ${themeKind}. Failed updates: ${failedCount}`
+          `Could not apply all settings for ${themeKind}. Failed updates: ${failedCount}`,
         );
       }
     } else {
-      outputChannel.appendLine(
-        `No settings configured for ${themeKind}`
-      );
+      outputChannel.appendLine(`No settings configured for ${themeKind}`);
       lastAppliedThemeKind = themeKind;
     }
   } catch (error) {
-    console.error(`Could not apply theme settings: ${error}`);
-    outputChannel.appendLine(`Could not apply theme settings: ${error}`);
+    outputChannel.appendLine(
+      `Could not apply theme settings: ${String(error)}`,
+    );
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requestThemeUpdate(force = false) {
+  themeUpdateQueue = themeUpdateQueue.then(() => handleThemeKindChange(force));
 }

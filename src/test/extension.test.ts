@@ -4,9 +4,19 @@ import { join } from "node:path";
 import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 
+type ActionSchema = {
+  scope: string;
+  additionalProperties: boolean;
+  properties: Record<string, { type: string; additionalProperties: boolean }>;
+};
+
 function createHarness(
   actions: unknown,
-  update: (setting: string, value: unknown, target: number) => Promise<void>
+  update: (
+    setting: string,
+    value: unknown,
+    target: number,
+  ) => void | Promise<void>,
 ) {
   let onThemeChange: ((theme: { kind: number }) => void) | undefined;
   let onConfigurationChange:
@@ -23,43 +33,58 @@ function createHarness(
     dispose() {},
   };
   const vscode = {
-    ColorThemeKind: { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 },
+    ColorThemeKind: {
+      Light: 1,
+      Dark: 2,
+      HighContrast: 3,
+      HighContrastLight: 4,
+    },
     ConfigurationTarget: { Global: 1 },
     window: {
       activeColorTheme: { kind: 1 },
       createOutputChannel: (name: string) => {
         createdChannels.push(name);
+
         return outputChannel;
       },
-      onDidChangeActiveColorTheme: (listener: NonNullable<typeof onThemeChange>) => {
+      onDidChangeActiveColorTheme: (
+        listener: NonNullable<typeof onThemeChange>,
+      ) => {
         onThemeChange = listener;
+
         return subscription;
       },
       // Available to the old implementation, but never fired by these tests.
       onDidChangeWindowState: () => subscription,
     },
     workspace: {
-      onDidChangeConfiguration: (listener: NonNullable<typeof onConfigurationChange>) => {
+      onDidChangeConfiguration: (
+        listener: NonNullable<typeof onConfigurationChange>,
+      ) => {
         onConfigurationChange = listener;
+
         return configurationSubscription;
       },
-      getConfiguration: () => ({ get: () => actions, update }),
+      getConfiguration: () => ({
+        get: () => actions,
+        update: async (setting: string, value: unknown, target: number) => {
+          await update(setting, value, target);
+        },
+      }),
     },
   };
   const extension = {} as { activate(extensionContext: typeof context): void };
 
   // Load fresh module state with a mocked VS Code API; never write real settings.
-  runInNewContext(
-    readFileSync(join(__dirname, "..", "extension.js"), "utf8"),
-    {
-      exports: extension,
-      require: (name: string) => {
-        assert.equal(name, "vscode");
-        return vscode;
-      },
-      console: { error: (message: string) => errors.push(message) },
-    }
-  );
+  runInNewContext(readFileSync(join(__dirname, "..", "extension.js"), "utf8"), {
+    exports: extension,
+    require: (name: string) => {
+      assert.equal(name, "vscode");
+
+      return vscode;
+    },
+    console: { error: (message: string) => errors.push(message) },
+  });
 
   return {
     activate: () => extension.activate(context),
@@ -76,43 +101,61 @@ function createHarness(
       onThemeChange(vscode.window.activeColorTheme);
     },
     changeConfiguration: (section: string) => {
-      assert.ok(onConfigurationChange, "must subscribe to configuration changes");
-      onConfigurationChange({ affectsConfiguration: (candidate) => candidate === section });
+      assert.ok(
+        onConfigurationChange,
+        "must subscribe to configuration changes",
+      );
+
+      onConfigurationChange({
+        affectsConfiguration: (candidate) => candidate === section,
+      });
     },
   };
 }
 
+function readActionSchema() {
+  // This fixture is the repository's manifest, not user configuration.
+  const manifest = JSON.parse(
+    readFileSync(join(__dirname, "..", "..", "package.json"), "utf8"),
+  ) as {
+    contributes: {
+      configuration: { properties: { "lumosync.actions": ActionSchema } };
+    };
+  };
+
+  return manifest.contributes.configuration.properties["lumosync.actions"];
+}
+
 suite("LumoSync", () => {
   test("restricts actions to user settings", () => {
-    const manifest = JSON.parse(
-      readFileSync(join(__dirname, "..", "..", "package.json"), "utf8")
-    );
-
-    assert.equal(
-      manifest.contributes.configuration.properties["lumosync.actions"].scope,
-      "application"
-    );
+    assert.equal(readActionSchema().scope, "application");
   });
 
   test("limits the action schema to the four supported theme names", () => {
-    const manifest = JSON.parse(
-      readFileSync(join(__dirname, "..", "..", "package.json"), "utf8")
-    );
-    const schema = manifest.contributes.configuration.properties["lumosync.actions"];
+    const schema = readActionSchema();
 
     assert.equal(schema.additionalProperties, false);
     assert.deepEqual(Object.keys(schema.properties).sort(), [
-      "Dark", "HighContrast", "HighContrastLight", "Light",
+      "Dark",
+      "HighContrast",
+      "HighContrastLight",
+      "Light",
     ]);
-    for (const name of Object.keys(schema.properties)) {
-      assert.equal(schema.properties[name].type, "object");
-      assert.equal(schema.properties[name].additionalProperties, true);
+
+    for (const group of Object.values(schema.properties)) {
+      assert.equal(group.type, "object");
+      assert.equal(group.additionalProperties, true);
     }
   });
 
   test("creates the output channel during activation and registers it for disposal", async () => {
-    const harness = createHarness({}, async () => {});
-    assert.deepEqual(harness.createdChannels, [], "module loading must not create a channel");
+    const harness = createHarness({}, () => {});
+
+    assert.deepEqual(
+      harness.createdChannels,
+      [],
+      "module loading must not create a channel",
+    );
 
     harness.activate();
     await setImmediate();
@@ -127,25 +170,30 @@ suite("LumoSync", () => {
         [{ Light: invalid }, "lumosync.actions.Light"],
       ] as const) {
         const writes: string[] = [];
-        const harness = createHarness(actions, async (setting) => {
+        const harness = createHarness(actions, (setting) => {
           writes.push(setting);
         });
 
         harness.activate();
         await setImmediate();
-        const diagnostic = section === "lumosync.actions"
-          ? "lumosync.actions must be an object containing theme kinds and their settings."
-          : `${section} must be an object containing setting names and values.`;
+
+        const diagnostic =
+          section === "lumosync.actions"
+            ? "lumosync.actions must be an object containing theme kinds and their settings."
+            : `${section} must be an object containing setting names and values.`;
+
         assert.deepEqual(writes, []);
         assert.ok(harness.logs.includes(diagnostic));
-        assert.ok(!harness.logs.some((line) => line.startsWith("Applied settings")));
+        assert.ok(
+          !harness.logs.some((line) => line.startsWith("Applied settings")),
+        );
 
         harness.changeTheme(1);
         await setImmediate();
         assert.equal(
           harness.logs.filter((line) => line === diagnostic).length,
           2,
-          "invalid configuration must not be cached as successfully applied"
+          "invalid configuration must not be cached as successfully applied",
         );
       }
     }
@@ -163,7 +211,7 @@ suite("LumoSync", () => {
       },
     };
     const writes: Array<[string, unknown]> = [];
-    const harness = createHarness(actions, async (setting, value) => {
+    const harness = createHarness(actions, (setting, value) => {
       writes.push([setting, value]);
     });
 
@@ -175,14 +223,18 @@ suite("LumoSync", () => {
   test("applies actions after a malformed group is corrected", async () => {
     const actions: Record<string, unknown> = { Light: [] };
     const writes: Array<[string, unknown]> = [];
-    const harness = createHarness(actions, async (setting, value) => {
+    const harness = createHarness(actions, (setting, value) => {
       writes.push([setting, value]);
     });
 
     harness.activate();
     await setImmediate();
     assert.deepEqual(writes, []);
-    assert.ok(harness.logs.includes("lumosync.actions.Light must be an object containing setting names and values."));
+    assert.ok(
+      harness.logs.includes(
+        "lumosync.actions.Light must be an object containing setting names and values.",
+      ),
+    );
 
     actions.Light = { "editor.fontSize": 14 };
     harness.changeConfiguration("lumosync.actions");
@@ -192,7 +244,7 @@ suite("LumoSync", () => {
 
   test("accepts missing configuration as a no-op", async () => {
     const writes: string[] = [];
-    const harness = createHarness(undefined, async (setting) => {
+    const harness = createHarness(undefined, (setting) => {
       writes.push(setting);
     });
 
@@ -210,9 +262,9 @@ suite("LumoSync", () => {
         Light: { "editor.fontSize": 12 },
         Dark: { "editor.fontSize": 16 },
       },
-      async (setting, value, target) => {
+      (setting, value, target) => {
         writes.push([setting, value, target]);
-      }
+      },
     );
 
     harness.activate();
@@ -242,16 +294,22 @@ suite("LumoSync", () => {
         HighContrast: { "editor.fontSize": 18 },
         HighContrastLight: { "editor.fontSize": 20 },
       },
-      async (_setting, value) => {
+      (_setting, value) => {
         writes.push(value);
-      }
+      },
     );
 
     harness.activate();
     await setImmediate();
     assert.deepEqual(writes, [14]);
-    for (const [kind, value] of [[2, 16], [3, 18], [4, 20]] as const) {
+
+    for (const [kind, value] of [
+      [2, 16],
+      [3, 18],
+      [4, 20],
+    ] as const) {
       const previousCount: number = writes.length;
+
       harness.changeTheme(kind);
       await setImmediate();
       assert.equal(writes.length, previousCount + 1);
@@ -271,14 +329,16 @@ suite("LumoSync", () => {
   test("reapplies edited actions without changing theme kind", async () => {
     const actions = { Light: { "editor.fontSize": 12 } };
     const writes: unknown[] = [];
-    const harness = createHarness(actions, async (_setting, value) => {
+    const harness = createHarness(actions, (_setting, value) => {
       writes.push(value);
     });
 
     harness.activate();
     await setImmediate();
     assert.deepEqual(writes, [12]);
-    assert.ok(harness.context.subscriptions.includes(harness.configurationSubscription));
+    assert.ok(
+      harness.context.subscriptions.includes(harness.configurationSubscription),
+    );
 
     actions.Light["editor.fontSize"] = 18;
     harness.changeConfiguration("lumosync.actions");
@@ -289,7 +349,7 @@ suite("LumoSync", () => {
   test("distinguishes initial detection, reapplication, and theme-kind changes in logs", async () => {
     const harness = createHarness(
       { Light: { "editor.fontSize": 14 }, Dark: { "editor.fontSize": 18 } },
-      async () => {}
+      () => {},
     );
 
     harness.activate();
@@ -301,7 +361,9 @@ suite("LumoSync", () => {
     harness.changeConfiguration("lumosync.actions");
     await setImmediate();
     assert.ok(harness.logs.includes("Reapplying settings for Light"));
-    assert.ok(!harness.logs.some((line) => line.includes("from Light to Light")));
+    assert.ok(
+      !harness.logs.some((line) => line.includes("from Light to Light")),
+    );
 
     harness.changeTheme(2);
     await setImmediate();
@@ -310,20 +372,33 @@ suite("LumoSync", () => {
 
   test("omits setting values from logs while keeping setting names and error details", async () => {
     const harness = createHarness(
-      { Light: { "example.object": { private: "object-secret" }, "example.token": "token-secret" } },
-      async (setting) => {
+      {
+        Light: {
+          "example.object": { private: "object-secret" },
+          "example.token": "token-secret",
+        },
+      },
+      (setting) => {
         if (setting === "example.token") {
           throw new Error("simulated write failure");
         }
-      }
+      },
     );
 
     harness.activate();
     await setImmediate();
     assert.ok(harness.logs.includes('Updated setting "example.object"'));
-    const failure = 'Could not update setting "example.token": Error: simulated write failure';
+
+    const failure =
+      'Could not update setting "example.token": Error: simulated write failure';
+
     assert.ok(harness.logs.includes(failure));
-    assert.deepEqual(harness.errors, [failure]);
+    assert.deepEqual(
+      harness.errors,
+      [],
+      "errors must use the output channel, not the console",
+    );
+
     for (const line of [...harness.logs, ...harness.errors]) {
       assert.ok(!line.includes("object-secret"));
       assert.ok(!line.includes("token-secret"));
@@ -335,10 +410,10 @@ suite("LumoSync", () => {
     const writes: unknown[] = [];
     const harness = createHarness(
       { Light: { "editor.fontSize": 12 } },
-      async (setting, value) => {
+      (setting, value) => {
         writes.push(value);
         harness.changeConfiguration(setting);
-      }
+      },
     );
 
     harness.activate();
@@ -354,34 +429,54 @@ suite("LumoSync", () => {
     const settings: Record<string, unknown> = {};
     const harness = createHarness(
       { Light: { "editor.fontSize": 12, "editor.lineHeight": 20 } },
-      async (setting, value) => {
+      (setting, value) => {
         writes.push(setting);
+
         if (setting === "editor.fontSize" && failFontWrite) {
           throw new Error("simulated write failure");
         }
+
         settings[setting] = value;
-      }
+      },
     );
 
     harness.activate();
     await setImmediate();
     assert.deepEqual(writes, ["editor.fontSize", "editor.lineHeight"]);
     assert.deepEqual(settings, { "editor.lineHeight": 20 });
-    assert.ok(harness.logs.includes("Could not apply all settings for Light. Failed updates: 1"));
-    assert.ok(!harness.logs.some((line) => line.startsWith("Applied settings")));
+    assert.ok(
+      harness.logs.includes(
+        "Could not apply all settings for Light. Failed updates: 1",
+      ),
+    );
+
+    assert.ok(
+      !harness.logs.some((line) => line.startsWith("Applied settings")),
+    );
 
     failFontWrite = false;
     harness.changeTheme(1);
     await setImmediate();
     assert.deepEqual(writes, [
-      "editor.fontSize", "editor.lineHeight", "editor.fontSize", "editor.lineHeight",
+      "editor.fontSize",
+      "editor.lineHeight",
+      "editor.fontSize",
+      "editor.lineHeight",
     ]);
-    assert.deepEqual(settings, { "editor.fontSize": 12, "editor.lineHeight": 20 });
+
+    assert.deepEqual(settings, {
+      "editor.fontSize": 12,
+      "editor.lineHeight": 20,
+    });
     assert.ok(harness.logs.includes("Applied settings for Light"));
 
     harness.changeTheme(1);
     await setImmediate();
-    assert.equal(writes.length, 4, "successful batches must still skip redundant events");
+    assert.equal(
+      writes.length,
+      4,
+      "successful batches must still skip redundant events",
+    );
   });
 
   test("reapplies a previously successful theme after another theme partially fails", async () => {
@@ -391,41 +486,52 @@ suite("LumoSync", () => {
         Light: { "editor.fontSize": 12, "editor.lineHeight": 20 },
         Dark: { "editor.fontSize": 16, "editor.lineHeight": 24 },
       },
-      async (setting, value) => {
+      (setting, value) => {
         if (setting === "editor.lineHeight" && value === 24) {
           throw new Error("simulated write failure");
         }
+
         settings[setting] = value;
-      }
+      },
     );
 
     harness.activate();
     await setImmediate();
     harness.changeTheme(2);
     await setImmediate();
-    assert.deepEqual(settings, { "editor.fontSize": 16, "editor.lineHeight": 20 });
+    assert.deepEqual(settings, {
+      "editor.fontSize": 16,
+      "editor.lineHeight": 20,
+    });
 
     harness.changeTheme(1);
     await setImmediate();
-    assert.deepEqual(settings, { "editor.fontSize": 12, "editor.lineHeight": 20 });
+    assert.deepEqual(settings, {
+      "editor.fontSize": 12,
+      "editor.lineHeight": 20,
+    });
   });
 
   test("treats absent and empty action groups as successful no-ops", async () => {
     const writes: string[] = [];
-    const harness = createHarness({ Light: {} }, async (setting) => {
+    const harness = createHarness({ Light: {} }, (setting) => {
       writes.push(setting);
     });
 
     harness.activate();
     await setImmediate();
+
     const lightLogCount = harness.logs.length;
+
     harness.changeTheme(1);
     await setImmediate();
     assert.equal(harness.logs.length, lightLogCount);
 
     harness.changeTheme(2);
     await setImmediate();
+
     const darkLogCount = harness.logs.length;
+
     harness.changeTheme(2);
     await setImmediate();
     assert.equal(harness.logs.length, darkLogCount);
@@ -446,22 +552,29 @@ suite("LumoSync", () => {
       },
       async (setting, value) => {
         started.push([setting, value]);
+
         if (setting === "editor.fontSize" && value === 12) {
           await lightWrite;
         }
+
         settings[setting] = value;
-      }
+      },
     );
 
     harness.activate();
     await setImmediate();
+
     try {
       assert.deepEqual(started, [["editor.fontSize", 12]]);
       harness.changeTheme(2);
       harness.changeTheme(1);
       harness.changeTheme(2);
       await setImmediate();
-      assert.deepEqual(started, [["editor.fontSize", 12]], "new batches must wait");
+      assert.deepEqual(
+        started,
+        [["editor.fontSize", 12]],
+        "new batches must wait",
+      );
     } finally {
       releaseLight();
       await setImmediate();
@@ -474,6 +587,10 @@ suite("LumoSync", () => {
       ["editor.fontSize", 16],
       ["editor.lineHeight", 24],
     ]);
-    assert.deepEqual(settings, { "editor.fontSize": 16, "editor.lineHeight": 24 });
+
+    assert.deepEqual(settings, {
+      "editor.fontSize": 16,
+      "editor.lineHeight": 24,
+    });
   });
 });

@@ -6,10 +6,16 @@ node = "24.21.0"
 "npm:pnpm" = { version = "12.3.4", allow_builds = ["pnpm"] }
 
 [tasks.check]
-depends = ["type-check", "lint", "test"]
+depends = ["format-check", "type-check", "lint", "test"]
 
 [tasks.compile]
 run = "pnpm run compile"
+
+[tasks.format]
+run = "pnpm run format"
+
+[tasks.format-check]
+run = "pnpm run format-check"
 
 [tasks.lint]
 run = "pnpm run lint"
@@ -22,6 +28,9 @@ run = "pnpm run pack-check"
 
 [tasks.package]
 run = "pnpm run package"
+
+[tasks.sort-package-json]
+run = "pnpm run sort-package-json"
 
 [tasks.test]
 run = "pnpm test"

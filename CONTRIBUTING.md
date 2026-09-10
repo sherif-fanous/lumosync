@@ -26,6 +26,20 @@ For continuous testing, run `mise run watch` in one terminal and `mise run test-
 
 `mise run test-vscode` runs the tests inside a downloaded VS Code installation. The mocked tests alone do not establish compatibility with every supported VS Code version.
 
+## Code style
+
+```sh
+mise run format
+mise run lint-fix
+mise run check
+```
+
+Prettier formats the source, tests, and configuration files. Its import-sorting plugin groups Node imports before other imports. ESLint checks types, naming, declaration order, and spacing. Run `lint-fix` after formatting because line wrapping can introduce statements that need blank lines.
+
+`mise run check` checks formatting, types, lint rules, and tests without applying fixes. Generated files and downloaded VS Code installations are excluded from linting.
+
+Use `mise run sort-package-json` to sort the package manifest, then run `mise run format`.
+
 ## Debug
 
 Make sure VS Code can find `mise` on its PATH, then press F5. The build task uses the pinned tools and compiles once before launching the development host. The task terminal shows the build output. The development host loads `out/extension.js`; source maps support breakpoints in `src/extension.ts`.
