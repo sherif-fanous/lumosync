@@ -7,15 +7,15 @@ const outputChannel = vscode.window.createOutputChannel("LumoSync");
 let lastThemeKind: string | undefined = undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-  // Listen for window state changes which can detect OS color scheme changes
+  // Apply settings when the active theme changes.
   context.subscriptions.push(
-    vscode.window.onDidChangeWindowState(() => {
-      handleThemeKindChange();
+    vscode.window.onDidChangeActiveColorTheme(() => {
+      void handleThemeKindChange();
     })
   );
 
-  // Initial check for the current theme
-  handleThemeKindChange();
+  // Apply settings for the initial theme.
+  void handleThemeKindChange();
 }
 
 /**
