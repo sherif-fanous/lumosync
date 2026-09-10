@@ -53,13 +53,12 @@
     "@types/vscode": "^1.75.0",
     "@typescript-eslint/eslint-plugin": "^8.25.0",
     "@typescript-eslint/parser": "^8.25.0",
-    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-cli": "0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "3.9.2",
     "eslint": "^9.21.0",
-    "ts-loader": "^9.5.2",
-    "typescript": "^5.7.3",
-    "webpack": "^5.98.0",
-    "webpack-cli": "^6.0.1"
+    "mocha": "10.8.2",
+    "typescript": "^5.7.3"
   },
   "displayName": "LumoSync",
   "engines": {
@@ -77,23 +76,28 @@
     "highcontrast"
   ],
   "license": "MIT",
-  "main": "./dist/extension.js",
+  "main": "./out/extension.js",
   "name": "lumosync",
+  "packageManager": "pnpm@12.3.4",
   "publisher": "sherif-fanous",
   "repository": {
     "type": "git",
     "url": "https://github.com/sherif-fanous/lumosync.git"
   },
   "scripts": {
-    "compile": "webpack",
-    "compile-tests": "tsc -p . --outDir out",
+    "check": "pnpm run type-check && pnpm run lint && pnpm test",
+    "compile": "tsc -p .",
     "lint": "eslint src",
-    "package": "webpack --mode production --devtool hidden-source-map",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "test": "vscode-test",
-    "vscode:prepublish": "npm run package",
-    "watch": "webpack --watch",
-    "watch-tests": "tsc -p . -w --outDir out"
+    "lint-fix": "eslint src --fix",
+    "pack-check": "pnpm run check && vsce ls --no-dependencies",
+    "package": "pnpm run check && vsce package --no-dependencies",
+    "test": "pnpm run compile && mocha --ui tdd \"out/test/**/*.test.js\"",
+    "test-vscode": "pnpm run compile && vscode-test",
+    "test-watch": "pnpm run compile && mocha --ui tdd --watch \"out/test/**/*.test.js\"",
+    "type-check": "tsc -p . --noEmit",
+    "update-deps": "pnpm update",
+    "vscode:prepublish": "pnpm run compile",
+    "watch": "tsc -p . --watch"
   },
   "version": "0.0.1"
 }

@@ -1,37 +1,36 @@
-// See https://go.microsoft.com/fwlink/?LinkId=733558
-// for the documentation about the tasks.json format
 {
+  "version": "2.0.0",
   "tasks": [
     {
-      "group": {
-        "isDefault": true,
-        "kind": "build"
+      "label": "compile",
+      "type": "process",
+      "command": "mise",
+      "args": ["exec", "--", "pnpm", "run", "compile"],
+      "options": {
+        "cwd": "${workspaceFolder}"
       },
-      "isBackground": true,
+      "problemMatcher": "$tsc",
       "presentation": {
-        "group": "watchers",
-        "reveal": "never"
-      },
-      "problemMatcher": "$ts-webpack-watch",
-      "script": "watch",
-      "type": "npm"
+        "reveal": "always"
+      }
     },
     {
-      "group": "build",
-      "isBackground": true,
-      "presentation": {
-        "group": "watchers",
-        "reveal": "never"
+      "label": "watch",
+      "type": "process",
+      "command": "mise",
+      "args": ["exec", "--", "pnpm", "run", "watch"],
+      "options": {
+        "cwd": "${workspaceFolder}"
       },
+      "isBackground": true,
       "problemMatcher": "$tsc-watch",
-      "script": "watch-tests",
-      "type": "npm"
-    },
-    {
-      "dependsOn": ["npm: watch", "npm: watch-tests"],
-      "label": "tasks: watch-tests",
-      "problemMatcher": []
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "never"
+      }
     }
-  ],
-  "version": "2.0.0"
+  ]
 }

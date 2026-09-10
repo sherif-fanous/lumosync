@@ -1,0 +1,42 @@
+[settings.npm]
+package_manager = "npm"
+
+[tools]
+node = "24.21.0"
+"npm:pnpm" = { version = "12.3.4", allow_builds = ["pnpm"] }
+
+[tasks.check]
+depends = ["type-check", "lint", "test"]
+
+[tasks.compile]
+run = "pnpm run compile"
+
+[tasks.lint]
+run = "pnpm run lint"
+
+[tasks.lint-fix]
+run = "pnpm run lint-fix"
+
+[tasks.pack-check]
+run = "pnpm run pack-check"
+
+[tasks.package]
+run = "pnpm run package"
+
+[tasks.test]
+run = "pnpm test"
+
+[tasks.test-vscode]
+run = "pnpm run test-vscode"
+
+[tasks.test-watch]
+run = "pnpm run test-watch"
+
+[tasks.type-check]
+run = "pnpm run type-check"
+
+[tasks.update-deps]
+run = "pnpm run update-deps"
+
+[tasks.watch]
+run = "pnpm run watch"

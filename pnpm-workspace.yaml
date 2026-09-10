@@ -1,0 +1,4 @@
+# Packaging does not need credential storage or VSIX signing.
+allowBuilds:
+  '@vscode/vsce-sign': false
+  keytar: false

@@ -8,7 +8,11 @@
 .vscode/**
 .yarnrc
 node_modules/**
-out/**
+out/test/**
+dist/**
 src/**
 vsc-extension-quickstart.md
-webpack.config.js
+mise.toml
+pnpm-lock.yaml
+pnpm-workspace.yaml
+CONTRIBUTING.md

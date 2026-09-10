@@ -250,7 +250,7 @@ suite("LumoSync", () => {
     harness.activate();
     await setImmediate();
     assert.deepEqual(writes, [14]);
-    for (const [kind, value] of [[2, 16], [3, 18], [4, 20]]) {
+    for (const [kind, value] of [[2, 16], [3, 18], [4, 20]] as const) {
       const previousCount: number = writes.length;
       harness.changeTheme(kind);
       await setImmediate();

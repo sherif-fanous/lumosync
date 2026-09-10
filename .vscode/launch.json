@@ -7,8 +7,8 @@
     {
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
       "name": "Run Extension",
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "${defaultBuildTask}",
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "preLaunchTask": "compile",
       "request": "launch",
       "type": "extensionHost"
     }
