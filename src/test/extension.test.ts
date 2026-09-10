@@ -233,6 +233,41 @@ suite("LumoSync", () => {
     assert.equal(writes.length, 2);
   });
 
+  test("maps all supported theme kinds and ignores an unsupported kind", async () => {
+    const writes: unknown[] = [];
+    const harness = createHarness(
+      {
+        Light: { "editor.fontSize": 14 },
+        Dark: { "editor.fontSize": 16 },
+        HighContrast: { "editor.fontSize": 18 },
+        HighContrastLight: { "editor.fontSize": 20 },
+      },
+      async (_setting, value) => {
+        writes.push(value);
+      }
+    );
+
+    harness.activate();
+    await setImmediate();
+    assert.deepEqual(writes, [14]);
+    for (const [kind, value] of [[2, 16], [3, 18], [4, 20]]) {
+      const previousCount: number = writes.length;
+      harness.changeTheme(kind);
+      await setImmediate();
+      assert.equal(writes.length, previousCount + 1);
+      assert.equal(writes.at(-1), value);
+    }
+
+    harness.changeTheme(99);
+    await setImmediate();
+    assert.deepEqual(writes, [14, 16, 18, 20]);
+    assert.deepEqual(harness.errors, []);
+
+    harness.changeTheme(1);
+    await setImmediate();
+    assert.deepEqual(writes, [14, 16, 18, 20, 14]);
+  });
+
   test("reapplies edited actions without changing theme kind", async () => {
     const actions = { Light: { "editor.fontSize": 12 } };
     const writes: unknown[] = [];

@@ -38,24 +38,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 async function handleThemeKindChange(force = false) {
   try {
-    // Get the current theme kind (Light, Dark, HighContrast, HighContrastLight)
-    const activeColorTheme = vscode.window.activeColorTheme;
-    let themeKind: string | undefined = undefined;
-
-    switch (activeColorTheme.kind) {
-      case vscode.ColorThemeKind.Light:
-        themeKind = "Light";
-        break;
-      case vscode.ColorThemeKind.Dark:
-        themeKind = "Dark";
-        break;
-      case vscode.ColorThemeKind.HighContrast:
-        themeKind = "HighContrast";
-        break;
-      case vscode.ColorThemeKind.HighContrastLight:
-        themeKind = "HighContrastLight";
-        break;
-    }
+    const themeKind = {
+      [vscode.ColorThemeKind.Light]: "Light",
+      [vscode.ColorThemeKind.Dark]: "Dark",
+      [vscode.ColorThemeKind.HighContrast]: "HighContrast",
+      [vscode.ColorThemeKind.HighContrastLight]: "HighContrastLight",
+    }[vscode.window.activeColorTheme.kind];
 
     // Action edits must reapply settings even when the theme kind is unchanged.
     if (!themeKind || (!force && lastAppliedThemeKind === themeKind)) {
