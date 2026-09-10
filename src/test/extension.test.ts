@@ -4,6 +4,57 @@ import { join } from "node:path";
 import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 
+function createHarness(
+  actions: Record<string, Record<string, unknown>>,
+  update: (setting: string, value: unknown, target: number) => Promise<void>
+) {
+  let onThemeChange: (() => void) | undefined;
+  const subscription = { dispose() {} };
+  const context = { subscriptions: [] as unknown[] };
+  const vscode = {
+    ColorThemeKind: { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 },
+    ConfigurationTarget: { Global: 1 },
+    window: {
+      activeColorTheme: { kind: 1 },
+      createOutputChannel: () => ({ appendLine() {} }),
+      onDidChangeActiveColorTheme: (listener: () => void) => {
+        onThemeChange = listener;
+        return subscription;
+      },
+      // Available to the old implementation, but never fired by these tests.
+      onDidChangeWindowState: () => subscription,
+    },
+    workspace: {
+      getConfiguration: () => ({ get: () => actions, update }),
+    },
+  };
+  const extension = {} as { activate(extensionContext: typeof context): void };
+
+  // Load fresh module state with a mocked VS Code API; never write real settings.
+  runInNewContext(
+    readFileSync(join(__dirname, "..", "extension.js"), "utf8"),
+    {
+      exports: extension,
+      require: (name: string) => {
+        assert.equal(name, "vscode");
+        return vscode;
+      },
+      console,
+    }
+  );
+
+  return {
+    activate: () => extension.activate(context),
+    context,
+    subscription,
+    changeTheme: (kind: number) => {
+      assert.ok(onThemeChange, "must subscribe to active theme changes");
+      vscode.window.activeColorTheme.kind = kind;
+      onThemeChange();
+    },
+  };
+}
+
 suite("LumoSync", () => {
   test("restricts actions to user settings", () => {
     const manifest = JSON.parse(
@@ -17,58 +68,23 @@ suite("LumoSync", () => {
   });
 
   test("applies theme changes without window-state events", async () => {
-    let onThemeChange: (() => void) | undefined;
     const writes: Array<[string, unknown, number]> = [];
-    const subscription = { dispose() {} };
-    const context = { subscriptions: [] as unknown[] };
-    const vscode = {
-      ColorThemeKind: { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 },
-      ConfigurationTarget: { Global: 1 },
-      window: {
-        activeColorTheme: { kind: 1 },
-        createOutputChannel: () => ({ appendLine() {} }),
-        onDidChangeActiveColorTheme: (listener: () => void) => {
-          onThemeChange = listener;
-          return subscription;
-        },
-        // Available to the old implementation, but never fired by this test.
-        onDidChangeWindowState: () => subscription,
-      },
-      workspace: {
-        getConfiguration: () => ({
-          get: () => ({
-            Light: { "editor.fontSize": 12 },
-            Dark: { "editor.fontSize": 16 },
-          }),
-          update: async (setting: string, value: unknown, target: number) => {
-            writes.push([setting, value, target]);
-          },
-        }),
-      },
-    };
-    const extension = {} as { activate(extensionContext: typeof context): void };
-
-    // Load fresh module state with a mocked VS Code API; never write real settings.
-    runInNewContext(
-      readFileSync(join(__dirname, "..", "extension.js"), "utf8"),
+    const harness = createHarness(
       {
-        exports: extension,
-        require: (name: string) => {
-          assert.equal(name, "vscode");
-          return vscode;
-        },
-        console,
+        Light: { "editor.fontSize": 12 },
+        Dark: { "editor.fontSize": 16 },
+      },
+      async (setting, value, target) => {
+        writes.push([setting, value, target]);
       }
     );
 
-    extension.activate(context);
+    harness.activate();
     await setImmediate();
     assert.deepEqual(writes, [["editor.fontSize", 12, 1]]);
-    assert.ok(onThemeChange, "must subscribe to active theme changes");
-    assert.ok(context.subscriptions.includes(subscription));
+    assert.ok(harness.context.subscriptions.includes(harness.subscription));
 
-    vscode.window.activeColorTheme.kind = vscode.ColorThemeKind.Dark;
-    onThemeChange();
+    harness.changeTheme(2);
     await setImmediate();
     assert.deepEqual(writes, [
       ["editor.fontSize", 12, 1],
@@ -76,8 +92,53 @@ suite("LumoSync", () => {
     ]);
 
     // Changes within the same theme kind must still be ignored.
-    onThemeChange();
+    harness.changeTheme(2);
     await setImmediate();
     assert.equal(writes.length, 2);
+  });
+
+  test("finishes the current batch before applying the latest theme", async () => {
+    let releaseLight!: () => void;
+    const lightWrite = new Promise<void>((resolve) => {
+      releaseLight = resolve;
+    });
+    const started: Array<[string, unknown]> = [];
+    const settings: Record<string, unknown> = {};
+    const harness = createHarness(
+      {
+        Light: { "editor.fontSize": 12, "editor.lineHeight": 20 },
+        Dark: { "editor.fontSize": 16, "editor.lineHeight": 24 },
+      },
+      async (setting, value) => {
+        started.push([setting, value]);
+        if (setting === "editor.fontSize" && value === 12) {
+          await lightWrite;
+        }
+        settings[setting] = value;
+      }
+    );
+
+    harness.activate();
+    await setImmediate();
+    try {
+      assert.deepEqual(started, [["editor.fontSize", 12]]);
+      harness.changeTheme(2);
+      harness.changeTheme(1);
+      harness.changeTheme(2);
+      await setImmediate();
+      assert.deepEqual(started, [["editor.fontSize", 12]], "new batches must wait");
+    } finally {
+      releaseLight();
+      await setImmediate();
+    }
+
+    // Queued passes read the latest theme rather than replaying intermediate ones.
+    assert.deepEqual(started, [
+      ["editor.fontSize", 12],
+      ["editor.lineHeight", 20],
+      ["editor.fontSize", 16],
+      ["editor.lineHeight", 24],
+    ]);
+    assert.deepEqual(settings, { "editor.fontSize": 16, "editor.lineHeight": 24 });
   });
 });

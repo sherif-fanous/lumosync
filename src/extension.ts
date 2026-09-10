@@ -6,16 +6,19 @@ const outputChannel = vscode.window.createOutputChannel("LumoSync");
 // Store the last detected theme kind
 let lastThemeKind: string | undefined = undefined;
 
+let themeUpdateQueue = Promise.resolve();
+
+function requestThemeUpdate() {
+  themeUpdateQueue = themeUpdateQueue.then(handleThemeKindChange);
+}
+
 export function activate(context: vscode.ExtensionContext) {
-  // Apply settings when the active theme changes.
+  // Serialize settings updates across theme changes.
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveColorTheme(() => {
-      void handleThemeKindChange();
-    })
+    vscode.window.onDidChangeActiveColorTheme(requestThemeUpdate)
   );
 
-  // Apply settings for the initial theme.
-  void handleThemeKindChange();
+  requestThemeUpdate();
 }
 
 /**
