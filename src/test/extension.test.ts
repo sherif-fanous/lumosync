@@ -16,6 +16,7 @@ function createHarness(
   const subscription = { dispose() {} };
   const context = { subscriptions: [] as unknown[] };
   const logs: string[] = [];
+  const errors: string[] = [];
   const createdChannels: string[] = [];
   const outputChannel = {
     appendLine: (message: string) => logs.push(message),
@@ -56,7 +57,7 @@ function createHarness(
         assert.equal(name, "vscode");
         return vscode;
       },
-      console,
+      console: { error: (message: string) => errors.push(message) },
     }
   );
 
@@ -66,6 +67,7 @@ function createHarness(
     subscription,
     configurationSubscription,
     logs,
+    errors,
     createdChannels,
     outputChannel,
     changeTheme: (kind: number) => {
@@ -131,10 +133,12 @@ suite("LumoSync", () => {
 
         harness.activate();
         await setImmediate();
-        const diagnostic = `Invalid ${section}: expected an object`;
+        const diagnostic = section === "lumosync.actions"
+          ? "lumosync.actions must be an object containing theme kinds and their settings."
+          : `${section} must be an object containing setting names and values.`;
         assert.deepEqual(writes, []);
         assert.ok(harness.logs.includes(diagnostic));
-        assert.ok(!harness.logs.some((line) => line.startsWith("Applied LumoSync actions")));
+        assert.ok(!harness.logs.some((line) => line.startsWith("Applied settings")));
 
         harness.changeTheme(1);
         await setImmediate();
@@ -178,7 +182,7 @@ suite("LumoSync", () => {
     harness.activate();
     await setImmediate();
     assert.deepEqual(writes, []);
-    assert.ok(harness.logs.includes("Invalid lumosync.actions.Light: expected an object"));
+    assert.ok(harness.logs.includes("lumosync.actions.Light must be an object containing setting names and values."));
 
     actions.Light = { "editor.fontSize": 14 };
     harness.changeConfiguration("lumosync.actions");
@@ -195,8 +199,8 @@ suite("LumoSync", () => {
     harness.activate();
     await setImmediate();
     assert.deepEqual(writes, []);
-    assert.ok(harness.logs.includes("No LumoSync actions found for theme kind: Light"));
-    assert.ok(!harness.logs.some((line) => line.startsWith("Invalid")));
+    assert.ok(harness.logs.includes("No settings configured for Light"));
+    assert.ok(!harness.logs.some((line) => line.includes("must be an object")));
   });
 
   test("applies theme changes without window-state events", async () => {
@@ -247,6 +251,51 @@ suite("LumoSync", () => {
     assert.deepEqual(writes, [12, 18]);
   });
 
+  test("distinguishes initial detection, reapplication, and theme-kind changes in logs", async () => {
+    const harness = createHarness(
+      { Light: { "editor.fontSize": 14 }, Dark: { "editor.fontSize": 18 } },
+      async () => {}
+    );
+
+    harness.activate();
+    await setImmediate();
+    assert.ok(harness.logs.includes("Current theme kind: Light"));
+    assert.ok(harness.logs.includes("Applying settings for Light"));
+    assert.ok(harness.logs.includes("Applied settings for Light"));
+
+    harness.changeConfiguration("lumosync.actions");
+    await setImmediate();
+    assert.ok(harness.logs.includes("Reapplying settings for Light"));
+    assert.ok(!harness.logs.some((line) => line.includes("from Light to Light")));
+
+    harness.changeTheme(2);
+    await setImmediate();
+    assert.ok(harness.logs.includes("Theme kind changed from Light to Dark"));
+  });
+
+  test("omits setting values from logs while keeping setting names and error details", async () => {
+    const harness = createHarness(
+      { Light: { "example.object": { private: "object-secret" }, "example.token": "token-secret" } },
+      async (setting) => {
+        if (setting === "example.token") {
+          throw new Error("simulated write failure");
+        }
+      }
+    );
+
+    harness.activate();
+    await setImmediate();
+    assert.ok(harness.logs.includes('Updated setting "example.object"'));
+    const failure = 'Could not update setting "example.token": Error: simulated write failure';
+    assert.ok(harness.logs.includes(failure));
+    assert.deepEqual(harness.errors, [failure]);
+    for (const line of [...harness.logs, ...harness.errors]) {
+      assert.ok(!line.includes("object-secret"));
+      assert.ok(!line.includes("token-secret"));
+      assert.ok(!line.includes("[object Object]"));
+    }
+  });
+
   test("ignores unrelated configuration changes, including its own setting writes", async () => {
     const writes: unknown[] = [];
     const harness = createHarness(
@@ -283,8 +332,8 @@ suite("LumoSync", () => {
     await setImmediate();
     assert.deepEqual(writes, ["editor.fontSize", "editor.lineHeight"]);
     assert.deepEqual(settings, { "editor.lineHeight": 20 });
-    assert.ok(harness.logs.includes("LumoSync actions incomplete for Light: 1 setting(s) failed"));
-    assert.ok(!harness.logs.some((line) => line.startsWith("Applied LumoSync actions")));
+    assert.ok(harness.logs.includes("Could not apply all settings for Light. Failed updates: 1"));
+    assert.ok(!harness.logs.some((line) => line.startsWith("Applied settings")));
 
     failFontWrite = false;
     harness.changeTheme(1);
@@ -293,7 +342,7 @@ suite("LumoSync", () => {
       "editor.fontSize", "editor.lineHeight", "editor.fontSize", "editor.lineHeight",
     ]);
     assert.deepEqual(settings, { "editor.fontSize": 12, "editor.lineHeight": 20 });
-    assert.ok(harness.logs.includes("Applied LumoSync actions for theme kind: Light"));
+    assert.ok(harness.logs.includes("Applied settings for Light"));
 
     harness.changeTheme(1);
     await setImmediate();

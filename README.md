@@ -1,37 +1,18 @@
 # LumoSync
 
-LumoSync automatically adjusts your VS Code settings based on the active theme kind (Light, Dark, HighContrast, or HighContrastLight). It detects theme changes and applies your predefined settings to maintain a cohesive visual experience.
+LumoSync applies your configured VS Code settings when the active theme kind changes. It supports Light, Dark, HighContrast, and HighContrastLight.
 
-## Why LumoSync?
+You can choose a different icon theme for light and dark modes, adjust fonts for readability, or change other extension and editor settings to suit each theme kind.
 
-VS Code has excellent support for automatically switching between light and dark themes based on your OS settings, but it doesn't provide a way to change other settings when your theme changes. For example:
+## How it works
 
-- When your theme switches to a light theme, you might want a different icon theme to match
-- You might prefer different font settings between light and dark modes for optimal readability
-- Certain extensions or interface elements might look better with different configurations in different theme modes
+VS Code can switch themes when the OS appearance changes. LumoSync follows the active VS Code theme, so it responds to manual theme changes and to OS appearance changes when VS Code follows the OS.
 
-LumoSync bridges this gap by detecting theme changes (whether manual or automatic via OS light/dark mode) and applying your pre-configured settings to ensure a completely cohesive experience.
+LumoSync applies the settings for the current theme kind when it starts. It also reapplies them when you edit `lumosync.actions`.
 
-## Features
+## Configuration
 
-- Automatically detects changes between Light, Dark, HighContrast, and HighContrastLight themes
-- Allows you to define custom settings to apply for each theme kind
-- Perfect for switching icon themes, font settings, or any other VS Code setting based on your current theme
-
-## How It Works
-
-LumoSync monitors your VS Code theme and detects when it changes between:
-
-- Light themes
-- Dark themes
-- High Contrast themes
-- High Contrast Light themes
-
-When a change is detected, LumoSync applies the corresponding settings you've configured.
-
-## Extension Settings
-
-Configure LumoSync by adding `lumosync.actions` to your User Settings. Workspace-defined actions are not supported; move any existing workspace actions to User Settings.
+Add `lumosync.actions` to your User Settings. Workspace-defined actions are not supported. If you have actions in Workspace Settings, move them to User Settings.
 
 Actions permanently update user settings and can affect other projects. Disabling LumoSync does not restore previous values.
 
@@ -54,4 +35,4 @@ Example User Settings configuration:
 }
 ```
 
-Each key in the configuration represents a theme kind, and each value is an object containing VS Code settings you want to apply when that theme kind is active.
+Each theme kind contains the setting names and values to apply when it is active.

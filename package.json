@@ -38,7 +38,7 @@
             "HighContrastLight": {},
             "Light": {}
           },
-          "description": "Define settings to apply to user settings when the theme kind changes. Configure these actions in User Settings.",
+          "description": "Choose the user settings to apply for each theme kind. Configure these actions in User Settings.",
           "scope": "application",
           "type": "object"
         }
@@ -46,7 +46,7 @@
       "title": "LumoSync"
     }
   },
-  "description": "LumoSync automatically adjusts your VS Code settings based on the active theme kind (Light, Dark, HighContrast, or HighContrastLight). It detects theme changes and applies your predefined settings to maintain a cohesive visual experience.",
+  "description": "Apply your configured VS Code settings when the active theme kind changes. Supports Light, Dark, HighContrast, and HighContrastLight.",
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
