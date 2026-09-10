@@ -5,6 +5,17 @@ import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 
 suite("LumoSync", () => {
+  test("restricts actions to user settings", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(__dirname, "..", "..", "package.json"), "utf8")
+    );
+
+    assert.equal(
+      manifest.contributes.configuration.properties["lumosync.actions"].scope,
+      "application"
+    );
+  });
+
   test("applies theme changes without window-state events", async () => {
     let onThemeChange: (() => void) | undefined;
     const writes: Array<[string, unknown, number]> = [];

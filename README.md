@@ -31,7 +31,11 @@ When a change is detected, LumoSync applies the corresponding settings you've co
 
 ## Extension Settings
 
-Configure LumoSync by adding a `lumosync.actions` section to your VS Code settings:
+Configure LumoSync by adding `lumosync.actions` to your User Settings. Workspace-defined actions are not supported; move any existing workspace actions to User Settings.
+
+Actions permanently update user settings and can affect other projects. Disabling LumoSync does not restore previous values.
+
+Example User Settings configuration:
 
 ```json
 "lumosync.actions": {

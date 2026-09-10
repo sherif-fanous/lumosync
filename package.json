@@ -24,7 +24,8 @@
             "HighContrastLight": {},
             "Light": {}
           },
-          "description": "Define settings to be updated when theme kind changes",
+          "description": "Define settings to apply to user settings when the theme kind changes. Configure these actions in User Settings.",
+          "scope": "application",
           "type": "object"
         }
       },
