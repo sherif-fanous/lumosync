@@ -1,5 +1,7 @@
 # LumoSync
 
+Requires VS Code 1.108.0 or later.
+
 LumoSync applies your configured VS Code settings when the active theme kind changes. It supports Light, Dark, HighContrast, and HighContrastLight.
 
 You can choose a different icon theme for light and dark modes, adjust fonts for readability, or change other extension and editor settings to suit each theme kind.

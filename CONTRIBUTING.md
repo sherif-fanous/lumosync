@@ -24,7 +24,16 @@ TypeScript compiles the extension and tests into `out/`. The tests use Mocha wit
 
 For continuous testing, run `mise run watch` in one terminal and `mise run test-watch` in another. The compiler watches TypeScript files, and Mocha watches the compiled JavaScript.
 
-`mise run test-vscode` runs the tests inside a downloaded VS Code installation. The mocked tests alone do not establish compatibility with every supported VS Code version.
+`mise run test-vscode` downloads and launches VS Code 1.108.0 and current stable. Each host runs the mocked tests and an integration test that checks activation, theme changes, and action edits. The integration test uses separate user-settings and extension directories under `.vscode-test/` and restores the settings it changes.
+
+Run one host with:
+
+```sh
+mise exec -- pnpm run test-vscode --label 1.108.0
+mise exec -- pnpm run test-vscode --label stable
+```
+
+These tests need a graphical desktop session. A download or host-launch failure is not a passing compatibility check.
 
 ## Code style
 
@@ -64,3 +73,12 @@ VSCE's optional credential-storage and signing install scripts are disabled in `
 ## Dependencies
 
 Use `mise exec -- pnpm add -D <package>` to add a development dependency, or `mise exec -- pnpm remove <package>` to remove one. `mise run update-deps` updates within the declared version ranges. Commit `pnpm-lock.yaml` with dependency changes.
+
+Keep the compatibility pins when updating dependencies:
+
+- `@types/vscode` stays at `1.108.1` to limit compilation to the supported VS Code API baseline.
+- `@types/node` stays on Node 22 typings. VS Code 1.108.0 uses Node 22.21.1. Development tools run on the Node version pinned in mise.
+- TypeScript stays at `6.0.3` while `typescript-eslint` requires a version below 6.1. Update Prettier's `importOrderTypeScriptVersion` when changing TypeScript.
+- Check the Node requirements of Mocha and `@vscode/test-cli` before updating them. The test runner must work inside the oldest supported VS Code host.
+
+Typings help prevent newer API calls, but they do not replace tests inside the supported VS Code hosts.

@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
+    "types": ["node", "mocha"],
     "module": "Node16",
     "moduleResolution": "Node16",
     "rootDir": "src",
