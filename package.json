@@ -13,10 +13,24 @@
     "configuration": {
       "properties": {
         "lumosync.actions": {
-          "additionalProperties": {
-            "additionalProperties": true,
-            "description": "Settings to apply when the theme kind is active",
-            "type": "object"
+          "additionalProperties": false,
+          "properties": {
+            "Light": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "Dark": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "HighContrast": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "HighContrastLight": {
+              "type": "object",
+              "additionalProperties": true
+            }
           },
           "default": {
             "Dark": {},

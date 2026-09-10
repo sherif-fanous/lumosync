@@ -92,6 +92,22 @@ suite("LumoSync", () => {
     );
   });
 
+  test("limits the action schema to the four supported theme names", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(__dirname, "..", "..", "package.json"), "utf8")
+    );
+    const schema = manifest.contributes.configuration.properties["lumosync.actions"];
+
+    assert.equal(schema.additionalProperties, false);
+    assert.deepEqual(Object.keys(schema.properties).sort(), [
+      "Dark", "HighContrast", "HighContrastLight", "Light",
+    ]);
+    for (const name of Object.keys(schema.properties)) {
+      assert.equal(schema.properties[name].type, "object");
+      assert.equal(schema.properties[name].additionalProperties, true);
+    }
+  });
+
   test("creates the output channel during activation and registers it for disposal", async () => {
     const harness = createHarness({}, async () => {});
     assert.deepEqual(harness.createdChannels, [], "module loading must not create a channel");
