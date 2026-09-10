@@ -8,14 +8,19 @@ let lastThemeKind: string | undefined = undefined;
 
 let themeUpdateQueue = Promise.resolve();
 
-function requestThemeUpdate() {
-  themeUpdateQueue = themeUpdateQueue.then(handleThemeKindChange);
+function requestThemeUpdate(force = false) {
+  themeUpdateQueue = themeUpdateQueue.then(() => handleThemeKindChange(force));
 }
 
 export function activate(context: vscode.ExtensionContext) {
   // Serialize settings updates across theme changes.
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveColorTheme(requestThemeUpdate)
+    vscode.window.onDidChangeActiveColorTheme(() => requestThemeUpdate()),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("lumosync.actions")) {
+        requestThemeUpdate(true);
+      }
+    })
   );
 
   requestThemeUpdate();
@@ -24,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
 /**
  * Handles theme changes by detecting the current theme kind and applying appropriate settings
  */
-async function handleThemeKindChange() {
+async function handleThemeKindChange(force = false) {
   try {
     // Get the current theme kind (Light, Dark, HighContrast, HighContrastLight)
     const activeColorTheme = vscode.window.activeColorTheme;
@@ -45,9 +50,9 @@ async function handleThemeKindChange() {
         break;
     }
 
-    // Check if the theme kind has changed
-    if (!themeKind || lastThemeKind === themeKind) {
-      return; // Exit early if theme hasn't changed
+    // Action edits must reapply settings even when the theme kind is unchanged.
+    if (!themeKind || (!force && lastThemeKind === themeKind)) {
+      return;
     }
 
     if (!lastThemeKind) {

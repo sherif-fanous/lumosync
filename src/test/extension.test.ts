@@ -8,7 +8,11 @@ function createHarness(
   actions: Record<string, Record<string, unknown>>,
   update: (setting: string, value: unknown, target: number) => Promise<void>
 ) {
-  let onThemeChange: (() => void) | undefined;
+  let onThemeChange: ((theme: { kind: number }) => void) | undefined;
+  let onConfigurationChange:
+    | ((event: { affectsConfiguration(section: string): boolean }) => void)
+    | undefined;
+  const configurationSubscription = { dispose() {} };
   const subscription = { dispose() {} };
   const context = { subscriptions: [] as unknown[] };
   const vscode = {
@@ -17,7 +21,7 @@ function createHarness(
     window: {
       activeColorTheme: { kind: 1 },
       createOutputChannel: () => ({ appendLine() {} }),
-      onDidChangeActiveColorTheme: (listener: () => void) => {
+      onDidChangeActiveColorTheme: (listener: NonNullable<typeof onThemeChange>) => {
         onThemeChange = listener;
         return subscription;
       },
@@ -25,6 +29,10 @@ function createHarness(
       onDidChangeWindowState: () => subscription,
     },
     workspace: {
+      onDidChangeConfiguration: (listener: NonNullable<typeof onConfigurationChange>) => {
+        onConfigurationChange = listener;
+        return configurationSubscription;
+      },
       getConfiguration: () => ({ get: () => actions, update }),
     },
   };
@@ -47,10 +55,15 @@ function createHarness(
     activate: () => extension.activate(context),
     context,
     subscription,
+    configurationSubscription,
     changeTheme: (kind: number) => {
       assert.ok(onThemeChange, "must subscribe to active theme changes");
       vscode.window.activeColorTheme.kind = kind;
-      onThemeChange();
+      onThemeChange(vscode.window.activeColorTheme);
+    },
+    changeConfiguration: (section: string) => {
+      assert.ok(onConfigurationChange, "must subscribe to configuration changes");
+      onConfigurationChange({ affectsConfiguration: (candidate) => candidate === section });
     },
   };
 }
@@ -95,6 +108,41 @@ suite("LumoSync", () => {
     harness.changeTheme(2);
     await setImmediate();
     assert.equal(writes.length, 2);
+  });
+
+  test("reapplies edited actions without changing theme kind", async () => {
+    const actions = { Light: { "editor.fontSize": 12 } };
+    const writes: unknown[] = [];
+    const harness = createHarness(actions, async (_setting, value) => {
+      writes.push(value);
+    });
+
+    harness.activate();
+    await setImmediate();
+    assert.deepEqual(writes, [12]);
+    assert.ok(harness.context.subscriptions.includes(harness.configurationSubscription));
+
+    actions.Light["editor.fontSize"] = 18;
+    harness.changeConfiguration("lumosync.actions");
+    await setImmediate();
+    assert.deepEqual(writes, [12, 18]);
+  });
+
+  test("ignores unrelated configuration changes, including its own setting writes", async () => {
+    const writes: unknown[] = [];
+    const harness = createHarness(
+      { Light: { "editor.fontSize": 12 } },
+      async (setting, value) => {
+        writes.push(value);
+        harness.changeConfiguration(setting);
+      }
+    );
+
+    harness.activate();
+    await setImmediate();
+    harness.changeConfiguration("editor.lineHeight");
+    await setImmediate();
+    assert.deepEqual(writes, [12]);
   });
 
   test("finishes the current batch before applying the latest theme", async () => {
