@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 
-// Create an output channel for logging
-const outputChannel = vscode.window.createOutputChannel("LumoSync");
+let outputChannel: vscode.OutputChannel;
 
 // Store the last detected theme kind
 let lastThemeKind: string | undefined = undefined;
@@ -14,8 +13,11 @@ function requestThemeUpdate(force = false) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  // Serialize settings updates across theme changes.
+  outputChannel = vscode.window.createOutputChannel("LumoSync");
+
+  // Register the channel for cleanup and serialize settings updates.
   context.subscriptions.push(
+    outputChannel,
     vscode.window.onDidChangeActiveColorTheme(() => requestThemeUpdate()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("lumosync.actions")) {
@@ -132,6 +134,3 @@ async function handleThemeKindChange(force = false) {
     outputChannel.appendLine(`Error in handleThemeKindChange: ${error}`);
   }
 }
-
-// This method is called when your extension is deactivated
-export function deactivate() {}

@@ -16,12 +16,20 @@ function createHarness(
   const subscription = { dispose() {} };
   const context = { subscriptions: [] as unknown[] };
   const logs: string[] = [];
+  const createdChannels: string[] = [];
+  const outputChannel = {
+    appendLine: (message: string) => logs.push(message),
+    dispose() {},
+  };
   const vscode = {
     ColorThemeKind: { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 },
     ConfigurationTarget: { Global: 1 },
     window: {
       activeColorTheme: { kind: 1 },
-      createOutputChannel: () => ({ appendLine: (message: string) => logs.push(message) }),
+      createOutputChannel: (name: string) => {
+        createdChannels.push(name);
+        return outputChannel;
+      },
       onDidChangeActiveColorTheme: (listener: NonNullable<typeof onThemeChange>) => {
         onThemeChange = listener;
         return subscription;
@@ -58,6 +66,8 @@ function createHarness(
     subscription,
     configurationSubscription,
     logs,
+    createdChannels,
+    outputChannel,
     changeTheme: (kind: number) => {
       assert.ok(onThemeChange, "must subscribe to active theme changes");
       vscode.window.activeColorTheme.kind = kind;
@@ -80,6 +90,16 @@ suite("LumoSync", () => {
       manifest.contributes.configuration.properties["lumosync.actions"].scope,
       "application"
     );
+  });
+
+  test("creates the output channel during activation and registers it for disposal", async () => {
+    const harness = createHarness({}, async () => {});
+    assert.deepEqual(harness.createdChannels, [], "module loading must not create a channel");
+
+    harness.activate();
+    await setImmediate();
+    assert.deepEqual(harness.createdChannels, ["LumoSync"]);
+    assert.ok(harness.context.subscriptions.includes(harness.outputChannel));
   });
 
   test("applies theme changes without window-state events", async () => {
