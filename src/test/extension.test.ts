@@ -5,7 +5,7 @@ import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 
 function createHarness(
-  actions: Record<string, Record<string, unknown>>,
+  actions: unknown,
   update: (setting: string, value: unknown, target: number) => Promise<void>
 ) {
   let onThemeChange: ((theme: { kind: number }) => void) | undefined;
@@ -100,6 +100,87 @@ suite("LumoSync", () => {
     await setImmediate();
     assert.deepEqual(harness.createdChannels, ["LumoSync"]);
     assert.ok(harness.context.subscriptions.includes(harness.outputChannel));
+  });
+
+  test("rejects malformed configuration and action-group containers without writes", async () => {
+    for (const invalid of [null, [], ["unexpected"], "hello", 0, false]) {
+      for (const [actions, section] of [
+        [invalid, "lumosync.actions"],
+        [{ Light: invalid }, "lumosync.actions.Light"],
+      ] as const) {
+        const writes: string[] = [];
+        const harness = createHarness(actions, async (setting) => {
+          writes.push(setting);
+        });
+
+        harness.activate();
+        await setImmediate();
+        const diagnostic = `Invalid ${section}: expected an object`;
+        assert.deepEqual(writes, []);
+        assert.ok(harness.logs.includes(diagnostic));
+        assert.ok(!harness.logs.some((line) => line.startsWith("Applied LumoSync actions")));
+
+        harness.changeTheme(1);
+        await setImmediate();
+        assert.equal(
+          harness.logs.filter((line) => line === diagnostic).length,
+          2,
+          "invalid configuration must not be cached as successfully applied"
+        );
+      }
+    }
+  });
+
+  test("passes setting names and values through without validating their contents", async () => {
+    const actions = {
+      Light: {
+        "example.array": [80, 120],
+        "example.object": { color: "red" },
+        "example.null": null,
+        "example.boolean": false,
+        "example.number": 14,
+        "example.string": "hello",
+      },
+    };
+    const writes: Array<[string, unknown]> = [];
+    const harness = createHarness(actions, async (setting, value) => {
+      writes.push([setting, value]);
+    });
+
+    harness.activate();
+    await setImmediate();
+    assert.deepEqual(writes, Object.entries(actions.Light));
+  });
+
+  test("applies actions after a malformed group is corrected", async () => {
+    const actions: Record<string, unknown> = { Light: [] };
+    const writes: Array<[string, unknown]> = [];
+    const harness = createHarness(actions, async (setting, value) => {
+      writes.push([setting, value]);
+    });
+
+    harness.activate();
+    await setImmediate();
+    assert.deepEqual(writes, []);
+    assert.ok(harness.logs.includes("Invalid lumosync.actions.Light: expected an object"));
+
+    actions.Light = { "editor.fontSize": 14 };
+    harness.changeConfiguration("lumosync.actions");
+    await setImmediate();
+    assert.deepEqual(writes, [["editor.fontSize", 14]]);
+  });
+
+  test("accepts missing configuration as a no-op", async () => {
+    const writes: string[] = [];
+    const harness = createHarness(undefined, async (setting) => {
+      writes.push(setting);
+    });
+
+    harness.activate();
+    await setImmediate();
+    assert.deepEqual(writes, []);
+    assert.ok(harness.logs.includes("No LumoSync actions found for theme kind: Light"));
+    assert.ok(!harness.logs.some((line) => line.startsWith("Invalid")));
   });
 
   test("applies theme changes without window-state events", async () => {

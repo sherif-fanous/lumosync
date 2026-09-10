@@ -29,6 +29,10 @@ export function activate(context: vscode.ExtensionContext) {
   requestThemeUpdate();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Handles theme changes by detecting the current theme kind and applying appropriate settings
  */
@@ -74,11 +78,23 @@ async function handleThemeKindChange(force = false) {
 
     const lumosyncActions = vscode.workspace
       .getConfiguration()
-      .get<Record<string, any>>("lumosync.actions");
+      .get<unknown>("lumosync.actions");
 
-    if (lumosyncActions && lumosyncActions[themeKind]) {
-      const actions = lumosyncActions[themeKind];
+    if (lumosyncActions !== undefined && !isRecord(lumosyncActions)) {
+      outputChannel.appendLine("Invalid lumosync.actions: expected an object");
+      return;
+    }
 
+    const actions = lumosyncActions?.[themeKind];
+
+    if (actions !== undefined && !isRecord(actions)) {
+      outputChannel.appendLine(
+        `Invalid lumosync.actions.${themeKind}: expected an object`
+      );
+      return;
+    }
+
+    if (actions !== undefined) {
       if (Object.keys(actions).length === 0) {
         outputChannel.appendLine(
           `No actions configured for ${themeKind} theme kind`
