@@ -15,12 +15,13 @@ function createHarness(
   const configurationSubscription = { dispose() {} };
   const subscription = { dispose() {} };
   const context = { subscriptions: [] as unknown[] };
+  const logs: string[] = [];
   const vscode = {
     ColorThemeKind: { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 },
     ConfigurationTarget: { Global: 1 },
     window: {
       activeColorTheme: { kind: 1 },
-      createOutputChannel: () => ({ appendLine() {} }),
+      createOutputChannel: () => ({ appendLine: (message: string) => logs.push(message) }),
       onDidChangeActiveColorTheme: (listener: NonNullable<typeof onThemeChange>) => {
         onThemeChange = listener;
         return subscription;
@@ -56,6 +57,7 @@ function createHarness(
     context,
     subscription,
     configurationSubscription,
+    logs,
     changeTheme: (kind: number) => {
       assert.ok(onThemeChange, "must subscribe to active theme changes");
       vscode.window.activeColorTheme.kind = kind;
@@ -143,6 +145,90 @@ suite("LumoSync", () => {
     harness.changeConfiguration("editor.lineHeight");
     await setImmediate();
     assert.deepEqual(writes, [12]);
+  });
+
+  test("reports partial failure, continues writes, and retries on a later same-kind event", async () => {
+    let failFontWrite = true;
+    const writes: string[] = [];
+    const settings: Record<string, unknown> = {};
+    const harness = createHarness(
+      { Light: { "editor.fontSize": 12, "editor.lineHeight": 20 } },
+      async (setting, value) => {
+        writes.push(setting);
+        if (setting === "editor.fontSize" && failFontWrite) {
+          throw new Error("simulated write failure");
+        }
+        settings[setting] = value;
+      }
+    );
+
+    harness.activate();
+    await setImmediate();
+    assert.deepEqual(writes, ["editor.fontSize", "editor.lineHeight"]);
+    assert.deepEqual(settings, { "editor.lineHeight": 20 });
+    assert.ok(harness.logs.includes("LumoSync actions incomplete for Light: 1 setting(s) failed"));
+    assert.ok(!harness.logs.some((line) => line.startsWith("Applied LumoSync actions")));
+
+    failFontWrite = false;
+    harness.changeTheme(1);
+    await setImmediate();
+    assert.deepEqual(writes, [
+      "editor.fontSize", "editor.lineHeight", "editor.fontSize", "editor.lineHeight",
+    ]);
+    assert.deepEqual(settings, { "editor.fontSize": 12, "editor.lineHeight": 20 });
+    assert.ok(harness.logs.includes("Applied LumoSync actions for theme kind: Light"));
+
+    harness.changeTheme(1);
+    await setImmediate();
+    assert.equal(writes.length, 4, "successful batches must still skip redundant events");
+  });
+
+  test("reapplies a previously successful theme after another theme partially fails", async () => {
+    const settings: Record<string, unknown> = {};
+    const harness = createHarness(
+      {
+        Light: { "editor.fontSize": 12, "editor.lineHeight": 20 },
+        Dark: { "editor.fontSize": 16, "editor.lineHeight": 24 },
+      },
+      async (setting, value) => {
+        if (setting === "editor.lineHeight" && value === 24) {
+          throw new Error("simulated write failure");
+        }
+        settings[setting] = value;
+      }
+    );
+
+    harness.activate();
+    await setImmediate();
+    harness.changeTheme(2);
+    await setImmediate();
+    assert.deepEqual(settings, { "editor.fontSize": 16, "editor.lineHeight": 20 });
+
+    harness.changeTheme(1);
+    await setImmediate();
+    assert.deepEqual(settings, { "editor.fontSize": 12, "editor.lineHeight": 20 });
+  });
+
+  test("treats absent and empty action groups as successful no-ops", async () => {
+    const writes: string[] = [];
+    const harness = createHarness({ Light: {} }, async (setting) => {
+      writes.push(setting);
+    });
+
+    harness.activate();
+    await setImmediate();
+    const lightLogCount = harness.logs.length;
+    harness.changeTheme(1);
+    await setImmediate();
+    assert.equal(harness.logs.length, lightLogCount);
+
+    harness.changeTheme(2);
+    await setImmediate();
+    const darkLogCount = harness.logs.length;
+    harness.changeTheme(2);
+    await setImmediate();
+    assert.equal(harness.logs.length, darkLogCount);
+    assert.deepEqual(writes, []);
   });
 
   test("finishes the current batch before applying the latest theme", async () => {

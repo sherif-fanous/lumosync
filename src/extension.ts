@@ -5,6 +5,7 @@ const outputChannel = vscode.window.createOutputChannel("LumoSync");
 
 // Store the last detected theme kind
 let lastThemeKind: string | undefined = undefined;
+let lastAppliedThemeKind: string | undefined;
 
 let themeUpdateQueue = Promise.resolve();
 
@@ -51,9 +52,12 @@ async function handleThemeKindChange(force = false) {
     }
 
     // Action edits must reapply settings even when the theme kind is unchanged.
-    if (!themeKind || (!force && lastThemeKind === themeKind)) {
+    if (!themeKind || (!force && lastAppliedThemeKind === themeKind)) {
       return;
     }
+
+    // A new attempt may partially overwrite previously applied settings.
+    lastAppliedThemeKind = undefined;
 
     if (!lastThemeKind) {
       outputChannel.appendLine(`Detected initial theme kind is ${themeKind}`);
@@ -78,6 +82,7 @@ async function handleThemeKindChange(force = false) {
           `No actions configured for ${themeKind} theme kind`
         );
 
+        lastAppliedThemeKind = themeKind;
         return;
       }
 
@@ -85,6 +90,7 @@ async function handleThemeKindChange(force = false) {
         `Applying LumoSync actions for ${themeKind} theme kind`
       );
 
+      let failedCount = 0;
       for (const [setting, value] of Object.entries(actions)) {
         try {
           await vscode.workspace
@@ -95,6 +101,7 @@ async function handleThemeKindChange(force = false) {
             `Updated setting "${setting}" to "${value}"`
           );
         } catch (err) {
+          failedCount++;
           console.error(
             `Failed to update setting "${setting}" to "${value}": ${err}`
           );
@@ -104,13 +111,21 @@ async function handleThemeKindChange(force = false) {
         }
       }
 
-      outputChannel.appendLine(
-        `Applied LumoSync actions for theme kind: ${themeKind}`
-      );
+      if (failedCount === 0) {
+        lastAppliedThemeKind = themeKind;
+        outputChannel.appendLine(
+          `Applied LumoSync actions for theme kind: ${themeKind}`
+        );
+      } else {
+        outputChannel.appendLine(
+          `LumoSync actions incomplete for ${themeKind}: ${failedCount} setting(s) failed`
+        );
+      }
     } else {
       outputChannel.appendLine(
         `No LumoSync actions found for theme kind: ${themeKind}`
       );
+      lastAppliedThemeKind = themeKind;
     }
   } catch (error) {
     console.error(`Error in handleThemeKindChange: ${error}`);
