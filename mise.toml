@@ -1,6 +1,9 @@
 [settings.npm]
 package_manager = "npm"
 
+[env]
+_.file = ".env"
+
 [tools]
 node = "24.21.0"
 "npm:pnpm" = { version = "12.3.4", allow_builds = ["pnpm"] }
@@ -28,6 +31,14 @@ run = "pnpm run pack-check"
 
 [tasks.package]
 run = "pnpm run package"
+
+[tasks.publish]
+description = "Publish the current version to Visual Studio Marketplace"
+depends = ["check"]
+run = """
+: "${VSCE_PAT:?Set VSCE_PAT in .env before publishing}"
+pnpm exec vsce publish --no-dependencies
+"""
 
 [tasks.sort-package-json]
 run = "pnpm run sort-package-json"
